@@ -49,7 +49,7 @@ boolean showTitle = true;
 boolean enableSound = true;
 boolean gameOver = false;
 int timer;
-int timerReset = 1200;
+int timerReset = 1300;
 int titleScreenTimer = 0;
 int titleScreenTimerReset = 2;
 
@@ -60,6 +60,36 @@ class Chicken {
     const byte w = 8, h = 5;
     const int startX = LCDWIDTH / 2 - 3, startY = LCDHEIGHT - h;
     const byte hopDistance = 7;
+};
+
+class Egg{
+  public:
+  byte x,y;
+  const byte minX = 2,maxX= 18, minY = 2,maxY=7,w = 6,h=7;
+  boolean isActive = false;
+  int eggTimerReset = random(1000,2000); 
+  int eggTimer = eggTimerReset;
+  
+  void Update(){
+    eggTimer --;
+    if(eggTimer == 0){
+      if(isActive == false){      
+     isActive  = true; 
+       tone(A2, 1200, 300);
+     x = random(minX,maxX);
+     x *= 7;
+     y = random(minY,maxY) ;
+     y *=7;
+      }
+    }if(eggTimer < -800){
+     eggTimer =  eggTimerReset;
+     isActive = false;
+     //move offscreen
+     x = 140;
+     y = 140;
+    }
+  }
+
 };
 
 class Car {
@@ -96,6 +126,10 @@ const byte speaker2[] PROGMEM = {B11111110, B00000000, B11100000, B00010000, B01
 const byte speaker3[] PROGMEM = {B11111111, B00000000, B00001111, B00010000, B00001100, B01100011, B00011000, B00000111,};
 
 const byte chickenImg[] PROGMEM = {B00000010, B00000110, B00001110, B00001110, B00011100, B00001100, B00001111, B00000010,};
+
+const unsigned char eggImg [] PROGMEM = {
+0x3C, 0x66, 0x7B, 0x7F, 0x7E, 0x3C, 0x00, 0x00, 
+};
 
 
 const byte carImg[] PROGMEM = {
@@ -134,7 +168,9 @@ const byte speakerImg[] PROGMEM = {
   B00000111, B11000000,
 };
 
+//Which came first? the chicken or the egg?
 Chicken chicken;
+Egg egg;
 
 Car car[3];
 Car truck[3];
@@ -495,6 +531,10 @@ void enterHighScore(byte file)
 }
 
 
+
+
+
+
 void movePlayer()
 {
   //Move right
@@ -607,6 +647,7 @@ boolean titleScreen()
     if (pollFireButton(25))
     {
       showTitle = false;
+      randomSeed(millis());
 
     }
     if ( !digitalRead(A1) )
@@ -638,6 +679,7 @@ boolean titleScreen()
       if (pollFireButton(50))
       {
         showTitle = false;
+        randomSeed(millis());
         break;
       }
 
@@ -677,6 +719,7 @@ boolean titleScreen()
       if (pollFireButton(25))
       {
         showTitle = false;
+        randomSeed(millis());
         break;
       }
       if ( !digitalRead(A1) )
@@ -738,6 +781,16 @@ void checkCollision() {
       gameOver = true;
     }
   }
+  
+  //check egg
+    if ( collision.collideRectRect(chicken.x, chicken.y, chicken.w, chicken.h, egg.x, egg.y, egg.w, egg.h)) {
+      egg.isActive = false;
+      egg.x = 160;
+      egg.y = 160;
+      score += 300;
+      tone(A2,900,250);
+      egg.eggTimer = egg.eggTimerReset;
+    }
 }
 void checkTimer() {
   timer--;
@@ -757,6 +810,7 @@ void loop()
     display.display();
     checkScore();
     checkCollision();
+    
     checkTimer();
     display.clearDisplay();
     display.fillRect(0, 0, LCDWIDTH, 8, 1);
@@ -777,7 +831,9 @@ void loop()
       truck2[i].Update();
       tractor[i].Update();
       tractor2[i].Update();
+      
     }
+    egg.Update();
     ///////////
     byte color;
     if (chicken.y < 4 | chicken.y > LCDHEIGHT - 9) {
@@ -797,6 +853,11 @@ void loop()
       display.drawBitmap(tractor[i].x, tractor[i].y, tractorImg, 10, 8, 1);
       display.drawBitmap(tractor2[i].x, tractor2[i].y, tractorImg, 10, 8, 1);
 
+    }
+    
+    //draw egg only if active
+    if(egg.isActive){
+     display.drawBitmap(egg.x,egg.y,eggImg,8,8,1); 
     }
 
 
