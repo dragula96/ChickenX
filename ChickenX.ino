@@ -11,7 +11,7 @@
 
 #include <SPI.h>
 #include <Wire.h>
-#include "Arduboy.h"
+#include "ArduboyDev.h"
 
 #include <EEPROM.h>
 
