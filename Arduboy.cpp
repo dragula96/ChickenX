@@ -1,4 +1,4 @@
-#include "Arduboy.h"
+#include "ArduboyDev.h"
 #include "glcdfont.c"
 
 Arduboy::Arduboy() { }
