@@ -1,5 +1,5 @@
-#ifndef Arduboy_h
-#define Arduboy_h
+#ifndef ArduboyDev_h
+#define ArduboyDev_h
 
 #include <SPI.h>
 #include <Print.h>
