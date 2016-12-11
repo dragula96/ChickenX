@@ -3,41 +3,38 @@
  Copyright (C) 2015 David Martinez
  All rights reserved.
 
+ Modified to use the Arduboy2 and ArduboyTones libraries
+ December 2016, Scott Allen 
+
  This library is free software; you can redistribute it and/or
  modify it under the terms of the GNU Lesser General Public
  License as published by the Free Software Foundation; either
  version 2.1 of the License, or (at your option) any later version.
  */
 
-#include <SPI.h>
-#include <Wire.h>
-#include "ArduboyDev.h"
+#include <Arduboy2.h>
+#include <ArduboyTones.h>
 
 #include <EEPROM.h>
 
 #include "Collision.h"
-#define OLED_DC 8
-#define OLED_CS 10   // SPI slave-select
-#define OLED_CLK 13  // hardware SPI clock
-#define OLED_MOSI 11   // hardware SPI MOSI
-#define OLED_RESET 7
-#define left 9
-#define up 8
-#define right 5
-#define down 10
 
-Arduboy display;
+#define PAD_LEFT 2
+#define PAD_UP 3
+#define PAD_RIGHT 4
+#define PAD_DOWN 5
+
+Arduboy2 display;
+ArduboyTones sound(display.audio.enabled);
 Collision collision;
 
-const byte LCDWIDTH = 128;   //Width of screen
-const byte LCDHEIGHT = 64;   //Hight of screen
+const byte LCDWIDTH = WIDTH;   //Width of screen
+const byte LCDHEIGHT = HEIGHT; //Hight of screen
 
 
 
-byte pad, pad2, pad3;   //Button press buffer used to stop pause repeating
-byte oldpad, oldpad2, oldpad3;
-
-#include "pins_arduino.h" // Arduino pre-1.0 needs this
+byte pad;   //Button press buffer used to stop pause repeating
+byte oldpad;
 
 int score = 0;
 int lives = 3;
@@ -46,7 +43,6 @@ char text[16];
 char initials[3];
 ///
 boolean showTitle = true;
-boolean enableSound = true;
 boolean gameOver = false;
 int timer;
 int timerReset = 1300;
@@ -75,7 +71,7 @@ class Egg{
     if(eggTimer == 0){
       if(isActive == false){      
      isActive  = true; 
-       tone(A2, 1200, 300);
+     sound.tone(1200, 300);
      x = random(minX,maxX);
      x *= 7;
      y = random(minY,maxY) ;
@@ -107,9 +103,9 @@ class Car {
             moveDelay = delayReset;
             x += xSpeed;
 
-            if (xSpeed < 0 & x < 0 - w)
+            if ((xSpeed < 0) && (x < 0 - w))
               x = LCDWIDTH + 10;
-            if (xSpeed > 0 & x > LCDWIDTH)
+            if ((xSpeed > 0) && (x > LCDWIDTH))
               x = 0 - w - 10;
           }
         }
@@ -185,49 +181,20 @@ void checkScore() {
   if (chicken.y < 4) {
     score += 100;
 
-    if (enableSound)
-      tone(A2, 1200, 300);
-    delay(200);
-    if (enableSound)
-      tone(A2, 200, 200);
-    delay(100);
-    if (enableSound)
-      tone(A2, 1500, 400);
-    delay(200);
+    sound.tone(1200,200, 200,100, 1500,400);
+    delay(1000);
     chicken.x = chicken.startX;
     chicken.y = chicken.startY;
     timer = timerReset;
   }
 }
 
-void intro()
-{
-  for (int i = -8; i < 28; i = i + 2)
-  {
-    display.clearDisplay();
-    display.setCursor(46, i);
-    display.print("ARDUBOY");
-
-    display.display();
-
-  }
-  if (enableSound)
-    tone(A2, 987, 160);
-  delay(160);
-  if (enableSound)
-    tone(A2, 1318, 400);
-  delay(2000);
-}
-
 void setup()
 {
-  SPI.begin();
-  display.start();
-  display.setTextSize(1);
-  display.setCursor(0, 0);
-  display.print("Hello World!");
-  display.display();
-  intro();
+  display.begin();
+
+  sound.tone(987,160, 1318,400);
+  delay(1000);
 
   chicken.x = chicken.startX;
   chicken.y = chicken.startY;
@@ -285,7 +252,7 @@ void setup()
 }
 
 //Function by nootropic design to display highscores
-boolean displayHighScores(byte file)
+void displayHighScores(byte file)
 {
   display.setTextSize(1);
   if (titleScreenTimer > - 1) {
@@ -295,7 +262,7 @@ boolean displayHighScores(byte file)
     // is 5 bytes long:  3 bytes for initials and two bytes for score.
     int address = file * 10 * 5;
     byte hi, lo;
-    display.clearDisplay();
+    display.clear();
     display.setCursor(32, 0);
     display.print("HIGH SCORES");
     display.display();
@@ -303,7 +270,7 @@ boolean displayHighScores(byte file)
     for (int i = 0; i < 10; i++)
     {
       sprintf(text, "%2d", i + 1);
-      display.setCursor(x, y + (i * 8));
+      display.setCursor(x, y + (i * 8)- 1);
       display.print( text);
       display.display();
       hi = EEPROM.read(address + (5 * i));
@@ -344,9 +311,9 @@ boolean displayHighScores(byte file)
 //Function by nootropic design to add high scores
 void enterInitials()
 {
-  char index = 0;
+  byte index = 0;
 
-  display.clearDisplay();
+  display.clear();
 
   initials[0] = ' ';
   initials[1] = ' ';
@@ -355,7 +322,7 @@ void enterInitials()
   while (true)
   {
     display.display();
-    display.clearDisplay();
+    display.clear();
 
     display.setCursor(16, 0);
     display.print("HIGH SCORE");
@@ -376,36 +343,32 @@ void enterInitials()
     display.drawLine(56 + (index * 8), 28, 56 + (index * 8) + 6, 28, 1);
     delay(150);
 
-    if (!digitalRead(5))
+    if (display.pressed(LEFT_BUTTON))
     {
-      index--;
-      if (index < 0)
+      if (index != 0)
       {
-        index = 0;
+        index--;
       } else
       {
-        if (enableSound)
-          tone(A2, 1046, 250);
+        sound.tone(1046, 250);
       }
     }
 
-    if (!digitalRead(9))
+    if (display.pressed(RIGHT_BUTTON))
     {
-      index++;
-      if (index > 2)
+      if (index < 2)
       {
-        index = 2;
+        index++;
       }  else {
-        if (enableSound)
-          tone(A2, 1046, 250);
+        sound.tone(1046, 250);
       }
     }
 
-    if (!digitalRead(8))
+    if (display.pressed(UP_BUTTON))
     {
       initials[index]++;
-      if (enableSound)
-        tone(A2, 523, 250);
+      sound.tone(523, 80);
+      delay(100);
       // A-Z 0-9 :-? !-/ ' '
       if (initials[index] == '0')
       {
@@ -425,11 +388,11 @@ void enterInitials()
       }
     }
 
-    if (!digitalRead(10))
+    if (display.pressed(DOWN_BUTTON))
     {
       initials[index]--;
-      if (enableSound)
-        tone(A2, 523, 250);
+      sound.tone(523, 80);
+      delay(100);
       if (initials[index] == ' ') {
         initials[index] = '?';
       }
@@ -444,16 +407,14 @@ void enterInitials()
       }
     }
 
-    if (!digitalRead(A0))
+    if (display.pressed(A_BUTTON))
     {
       if (index < 2)
       {
         index++;
-        if (enableSound)
-          tone(A2, 1046, 250);
+        sound.tone(1046, 250);
       } else {
-        if (enableSound)
-          tone(A2, 1046, 250);
+        sound.tone(1046, 250);
         return;
       }
     }
@@ -468,7 +429,7 @@ void enterHighScore(byte file)
   int address = file * 10 * 5;
   byte hi, lo;
   char tmpInitials[3];
-  unsigned int tmpScore = 0;
+  int tmpScore = 0;
 
   // High score processing
   for (byte i = 0; i < 10; i++)
@@ -506,11 +467,11 @@ void enterHighScore(byte file)
         tmpInitials[2] = (char)EEPROM.read(address + (5 * j) + 4);
 
         // write score and initials to current slot
-        EEPROM.write(address + (5 * j), ((score >> 8) & 0xFF));
-        EEPROM.write(address + (5 * j) + 1, (score & 0xFF));
-        EEPROM.write(address + (5 * j) + 2, initials[0]);
-        EEPROM.write(address + (5 * j) + 3, initials[1]);
-        EEPROM.write(address + (5 * j) + 4, initials[2]);
+        EEPROM.update(address + (5 * j), ((score >> 8) & 0xFF));
+        EEPROM.update(address + (5 * j) + 1, (score & 0xFF));
+        EEPROM.update(address + (5 * j) + 2, initials[0]);
+        EEPROM.update(address + (5 * j) + 3, initials[1]);
+        EEPROM.update(address + (5 * j) + 4, initials[2]);
 
         // tmpScore and tmpInitials now hold what we want to
         //write in the next slot.
@@ -539,12 +500,11 @@ void movePlayer()
 {
   //Move right
 
-  if ( !digitalRead(right) & chicken.x < LCDWIDTH - chicken.w - 4 )
+  if ((display.pressed(RIGHT_BUTTON)) && (chicken.x < LCDWIDTH - chicken.w - 4))
   {
-    pad = right;
+    pad = PAD_RIGHT;
     if (pad != oldpad) {
-      if (enableSound)
-        tone(A2, 987, 60);
+      sound.tone(987, 60);
       chicken.x += chicken.hopDistance;
       oldpad = pad;
     }
@@ -552,33 +512,30 @@ void movePlayer()
 
   //Move left
 
-  else if ( !digitalRead(left) & chicken.x > 0 + 5 )
+  else if ((display.pressed(LEFT_BUTTON)) && (chicken.x > 0 + 5))
   {
-    pad = left;
+    pad = PAD_LEFT;
     if (pad != oldpad) {
-      if (enableSound)
-        tone(A2, 987, 60);
+      sound.tone(987, 60);
       chicken.x -= chicken.hopDistance;
       oldpad = pad;
     }
   }
-  else if ( !digitalRead(up))
+  else if ( display.pressed(UP_BUTTON))
   {
-    pad = up;
+    pad = PAD_UP;
     if (pad != oldpad) {
-      if (enableSound)
-        tone(A2, 987, 60);
+      sound.tone(987, 60);
       chicken.y -= chicken.hopDistance;
       oldpad = pad;
     }
   }
 
-  else if ( !digitalRead(down) & chicken.y < LCDHEIGHT - chicken.h)
+  else if ((display.pressed(DOWN_BUTTON)) && (chicken.y < LCDHEIGHT - chicken.h))
   {
-    pad = down;
+    pad = PAD_DOWN;
     if (pad != oldpad) {
-      if (enableSound)
-        tone(A2, 987, 60);
+      sound.tone(987, 60);
       chicken.y += chicken.hopDistance;
       oldpad = pad;
     }
@@ -602,10 +559,9 @@ boolean pollFireButton(int n)
   for (int i = 0; i < n; i++)
   {
     delay(15);
-    pad = !digitalRead(A0);
+    pad = display.pressed(A_BUTTON);
     if (pad == 1 && oldpad == 0)
     {
-      oldpad3 = 1; //Forces pad loop 3 to run once
       return true;
     }
     oldpad = pad;
@@ -617,7 +573,7 @@ boolean pollFireButton(int n)
 
 
 
-boolean titleScreen()
+void titleScreen()
 {
   score = 0;
   lives = 3;
@@ -626,7 +582,7 @@ boolean titleScreen()
   titleScreenTimer --;
   if (titleScreenTimer > 0) {
     //Clears the screen
-    display.clearDisplay();
+    display.clear();
 
 
     display.setCursor(12, 5);
@@ -637,7 +593,7 @@ boolean titleScreen()
     display.setTextSize(1);
     display.drawBitmap(0, 0, chickenTitle, 128, 64, 1);
     // draw speaker icon in sections // could not get a 32x32 image to render properly
-    if (enableSound) {
+    if (display.audio.enabled()) {
       display.drawBitmap(106, 56, speaker0, 8, 8, 0);
       display.drawBitmap(106, 56 - 8, speaker1, 8, 8, 0);
       display.drawBitmap(106 + 8, 56 - 8, speaker2, 8, 8, 0);
@@ -650,15 +606,15 @@ boolean titleScreen()
       randomSeed(millis());
 
     }
-    if ( !digitalRead(A1) )
+    if ( display.pressed(B_BUTTON) )
     {
       pad = 1;
       if (oldpad != pad) {
-        if (enableSound) {
-          enableSound = false;
+        if (display.audio.enabled()) {
+          display.audio.off();
 
         } else {
-          enableSound = true;
+          display.audio.off();
         }
       }
     }  else {
@@ -666,14 +622,14 @@ boolean titleScreen()
     }
     oldpad = pad;
 
-    //Flash "Press FIRE" 5 times
+    //Flash button instructions 5 times
     for (byte i = 0; i < 5; i++)
     {
-      //Draws "Press FIRE"
-
-
-      display.setCursor(31, 53);
-      display.print("PRESS FIRE!");
+      display.fillRect(2, 37, 91, 24, BLACK);
+      display.setCursor(27, 40);
+      display.print("A:START");
+      display.setCursor(6, 51);
+      display.print("B:TOGGLE SOUND");
       display.display();
 
       if (pollFireButton(50))
@@ -683,21 +639,21 @@ boolean titleScreen()
         break;
       }
 
-      if ( !digitalRead(A1) )
+      if ( display.pressed(B_BUTTON) )
       {
         pad = 1;
-        if (enableSound) {
-          enableSound = false;
+        if (display.audio.enabled()) {
+          display.audio.off();
           ;
         } else {
-          enableSound = true;
+          display.audio.on();
         }
       }  else {
         pad = 0;
       }
       //Removes "Press FIRE"
       oldpad = pad;
-      display.clearDisplay();
+      display.clear();
 
       display.setCursor(12, 5);
       display.setTextSize(2);
@@ -706,7 +662,7 @@ boolean titleScreen()
       //  display.print("Cross");
       display.drawBitmap(0, 0, chickenTitle, 128, 64, 1);
       // draw speaker icon in sections // could not get a 32x32 image to render properly
-      if (enableSound) {
+      if (display.audio.enabled()) {
         display.drawBitmap(106, 56, speaker0, 8, 8, 0);
         display.drawBitmap(106, 56 - 8, speaker1, 8, 8, 0);
         display.drawBitmap(106 + 8, 56 - 8, speaker2, 8, 8, 0);
@@ -722,15 +678,15 @@ boolean titleScreen()
         randomSeed(millis());
         break;
       }
-      if ( !digitalRead(A1) )
+      if ( display.pressed(B_BUTTON) )
       {
         pad = 1;
         if (oldpad != pad) {
-          if (enableSound) {
-            enableSound = false;
+          if (display.audio.enabled()) {
+            display.audio.off();
 
           } else {
-            enableSound = true;
+            display.audio.on();
           }
         }
       } else {
@@ -767,11 +723,7 @@ void checkCollision() {
     }
   }
   if (collisionDetected) {
-    if (enableSound)
-      tone(A2, 200, 250);
-    delay(150);
-    if (enableSound)
-      tone(A2, 180, 250);
+    sound.tone(200,150, 180,250);
     delay(400);
     lives --;
     timer = timerReset;
@@ -788,7 +740,7 @@ void checkCollision() {
       egg.x = 160;
       egg.y = 160;
       score += 300;
-      tone(A2,900,250);
+      sound.tone(900,250);
       egg.eggTimer = egg.eggTimerReset;
     }
 }
@@ -796,11 +748,7 @@ void checkTimer() {
   timer--;
   if (timer < 0) {
     gameOver = true;
-    if (enableSound)
-      tone(A2, 200, 250);
-    delay(150);
-    if (enableSound)
-      tone(A2, 180, 250);
+    sound.tone(200,150, 180,250);
     delay(400);
   }
 }
@@ -812,12 +760,12 @@ void loop()
     checkCollision();
     
     checkTimer();
-    display.clearDisplay();
+    display.clear();
     display.fillRect(0, 0, LCDWIDTH, 8, 1);
     display.fillRect(0, LCDHEIGHT - 6, LCDWIDTH, 8, 1);
     display.setCursor(LCDWIDTH / 2 - 10, 1);
     display.print(score);
-    display.setCursor(LCDWIDTH - 24, LCDHEIGHT - 6);
+    display.setCursor(LCDWIDTH - 24, LCDHEIGHT - 7);
     display.print(timer);
 
 
@@ -836,7 +784,7 @@ void loop()
     egg.Update();
     ///////////
     byte color;
-    if (chicken.y < 4 | chicken.y > LCDHEIGHT - 9) {
+    if ((chicken.y < 4) || (chicken.y > LCDHEIGHT - 9)) {
       color = 0;
     } else {
       color = 1;
@@ -866,8 +814,8 @@ void loop()
     titleScreen();
   }
   else if (gameOver) {
-    display.clearDisplay();
-    display.setCursor(14, 30);
+    display.clear();
+    display.setCursor(10, 24);
     display.setTextSize(2);
     if (timer > 0) {
       display.print("Game Over");
@@ -885,6 +833,6 @@ void loop()
     timer = timerReset;
     titleScreenTimer = titleScreenTimerReset;
     chicken.x = chicken.startX;
-    chicken.y - chicken.startY;
+    chicken.y = chicken.startY;
   }
 }
